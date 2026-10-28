@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#061017">
+  <meta name="description" content="江豚背鳍 YOLO11n 检测智能体：上传图片，在浏览器本地完成 fin 目标检测。">
+  <meta property="og:title" content="江豚背鳍检测智能体 · Fin Detector">
+  <meta property="og:description" content="YOLO11n + ONNX Runtime Web，浏览器本地推理，不上传原图。">
+  <meta property="og:image" content="samples/fin_01.jpg">
+  <title>江豚背鳍检测智能体 · Fin Detector</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/ort.webgpu.min.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+  <div class="grid-overlay" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="返回首页">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" role="img">
+          <path d="M8 27c8-9 18-12 29-9-4 3-6 7-7 12 5 1 8 3 10 6-10 2-19 0-26-6-2-2-4-3-6-3Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M18 23c4-7 10-11 18-12-2 4-2 8-1 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="36" cy="24.5" r="1.4" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="brand-copy">
+        <strong>Fin Detector</strong>
+        <small>江豚背鳍检测智能体</small>
+      </span>
+    </a>
+    <div class="model-status loading" id="modelStatus" role="status" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="modelStatusText">正在加载模型</span>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="hero" aria-labelledby="pageTitle">
+      <div class="hero-copy">
+        <p class="eyebrow"><span>MARINE VISION</span> · YOLO11N · ONNX</p>
+        <h1 id="pageTitle">让每一道背鳍<br><em>被看见。</em></h1>
+        <p class="hero-lede">上传一张江豚照片，智能体会在浏览器内定位背鳍区域并给出置信度。图片不会发送到任何服务器。</p>
+        <div class="hero-tags" aria-label="应用特性">
+          <span>单类别 <b>fin</b></span>
+          <span>本地推理</span>
+          <span>640 × 640</span>
+        </div>
+      </div>
+      <div class="hero-orbit" aria-hidden="true">
+        <div class="orbit-ring orbit-ring-a"></div>
+        <div class="orbit-ring orbit-ring-b"></div>
+        <div class="orbit-core">
+          <span>FIN</span>
+          <small>DETECTION</small>
+        </div>
+        <span class="orbit-node node-a"></span>
+        <span class="orbit-node node-b"></span>
+        <span class="orbit-node node-c"></span>
+      </div>
+    </section>
+
+    <section class="workspace" aria-label="检测工作区">
+      <div class="canvas-card">
+        <div class="card-head">
+          <div>
+            <p class="section-kicker">INSPECTION DECK</p>
+            <h2>检测画布</h2>
+          </div>
+          <div class="card-actions">
+            <button class="ghost-button" id="downloadBtn" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              下载结果
+            </button>
+            <button class="icon-button" id="resetBtn" type="button" aria-label="清空当前图片" title="清空" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="上传江豚图片">
+          <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" hidden>
+          <div class="empty-state" id="emptyState">
+            <div class="upload-glyph" aria-hidden="true">
+              <svg viewBox="0 0 64 64"><path d="M32 12v28m0-28 10 10M32 12 22 22M14 38v10h36V38" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3>把江豚照片放到这里</h3>
+            <p>支持 JPG、PNG、WebP，建议使用清晰、背鳍完整可见的照片。</p>
+            <span class="select-pill">选择图片</span>
+          </div>
+          <div class="canvas-wrap" id="canvasWrap" hidden>
+            <canvas id="previewCanvas" aria-label="检测结果预览"></canvas>
+            <div class="scan-line" id="scanLine" aria-hidden="true"></div>
+            <div class="canvas-caption">
+              <span id="fileName">未命名</span>
+              <span id="imageMeta"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sample-strip">
+          <div class="sample-copy">
+            <span>没有图片？</span>
+            <strong>试试示例照片</strong>
+          </div>
+          <div class="sample-list">
+            <button class="sample-button" type="button" data-sample="samples/fin_01.jpg" data-name="20200106_053">
+              <img src="samples/fin_01.jpg" alt="江豚示例照片 1" loading="lazy">
+              <span>示例 01</span>
+            </button>
+            <button class="sample-button" type="button" data-sample="samples/fin_02.jpg" data-name="20200203_028">
+              <img src="samples/fin_02.jpg" alt="江豚示例照片 2" loading="lazy">
+              <span>示例 02</span>
+            </button>
+            <button class="sample-button" type="button" data-sample="samples/fin_03.jpg" data-name="20210202_089">
+              <img src="samples/fin_03.jpg" alt="江豚示例照片 3" loading="lazy">
+              <span>示例 03</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="control-panel" aria-label="检测控制与结果">
+        <section class="panel-block">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">AGENT FLOW</p>
+              <h2>交互流程</h2>
+            </div>
+            <span class="agent-chip"><i></i> 在线</span>
+          </div>
+          <ol class="pipeline" id="pipeline">
+            <li class="active" data-step="1"><span>01</span><div><b>上传图片</b><small>选择或拖入照片</small></div></li>
+            <li data-step="2"><span>02</span><div><b>图像预处理</b><small>等比缩放 + 灰边补全</small></div></li>
+            <li data-step="3"><span>03</span><div><b>模型推理</b><small>YOLO11n 单类别检测</small></div></li>
+            <li data-step="4"><span>04</span><div><b>输出结果</b><small>画框、置信度与下载</small></div></li>
+          </ol>
+        </section>
+
+        <section class="panel-block compact">
+          <label class="range-label" for="confidenceRange">
+            <span>置信度阈值</span>
+            <output id="confidenceValue" for="confidenceRange">0.50</output>
+          </label>
+          <input id="confidenceRange" class="range" type="range" min="0.1" max="0.9" step="0.05" value="0.5">
+          <div class="range-scale" aria-hidden="true"><span>更敏感</span><span>更严格</span></div>
+        </section>
+
+        <button class="detect-button" id="detectBtn" type="button" disabled>
+          <span class="button-label">开始检测</span>
+          <span class="button-loader" aria-hidden="true"></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <section class="result-summary" id="resultSummary" hidden aria-live="polite">
+          <div class="metric">
+            <span>目标数</span>
+            <strong id="targetCount">0</strong>
+          </div>
+          <div class="metric">
+            <span>最高置信度</span>
+            <strong id="topConfidence">—</strong>
+          </div>
+          <div class="metric">
+            <span>推理耗时</span>
+            <strong id="inferenceTime">—</strong>
+          </div>
+        </section>
+
+        <section class="panel-block results-block">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">DETECTIONS</p>
+              <h2>检测结果</h2>
+            </div>
+            <span class="result-badge" id="resultBadge" hidden>fin</span>
+          </div>
+          <div class="results-list" id="resultsList">
+            <p class="placeholder">完成检测后，这里会显示每个目标的位置和置信度。</p>
+          </div>
+        </section>
+
+        <section class="agent-log" aria-label="智能体日志">
+          <div class="log-head"><span>智能体日志</span><i class="live-dot"></i></div>
+          <div class="log-lines" id="logLines" aria-live="polite">
+            <p><time>--:--:--</time> 等待模型与图片就绪…</p>
+          </div>
+        </section>
+
+        <p class="privacy-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Zm-2.5 9 1.8 1.8 3.8-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          图片仅在当前浏览器中处理，不会上传。模型仅用少量样本微调，结果仅供演示，不能替代真实生态监测结论。
+        </p>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>YOLO11n · ONNX Runtime Web · GitHub Pages</span>
+    <span>模型类别：<b>fin</b> · 输入：640 × 640</span>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
